@@ -16,7 +16,7 @@ Concepts
 --------
 Backups are defined in configuration files written in Python. Configuration files can contain multiple backup configurations. The desired configuration file is executed at run-time using ``execfile``.
 
-Each backup configuration consists of multiple parts that can be run invidually or in any desired seqeuence. For example, a backup configuration might include a first part backing up the root partition, and a second part backing up /home.
+Each backup configuration consists of multiple parts that can be run invidually or in any desired sequence. For example, a backup configuration might include a first part backing up the root partition, and a second part backing up /home.
 
 Each part consists of one or more steps that typically might include actions to mount the backup destination, running the backup, and unmounting. Steps may be common to multiple parts, in which case they will be executed only once. For example, before any backup parts are run, an external hard drive receiving the backup may need to be mounted and decrypted using LUKS. After all backup parts have run, the drive will need to be properly unmounted.
 
