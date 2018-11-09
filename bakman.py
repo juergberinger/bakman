@@ -517,6 +517,7 @@ class RsArchive(Step):
                 run('mkdir -p %s' % self.dstPath, dryrun=options.dryrun)
             if self.nKeep>0:
                 # rotate old versions
+                info('%s starting rotate, keeping %s old versions ...' % (time.asctime(),self.nKeep))
                 delPath = os.path.join(self.path,str(self.nKeep))
                 if delPath=='/' or ('*' in delPath) or ('%' in delPath) or ('?' in delPath):
                     error('Found wildcard character in rotation path %s - skipping backup' % delPath)
