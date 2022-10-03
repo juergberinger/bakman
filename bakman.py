@@ -11,9 +11,18 @@ into a single pre-mounted location, or it can create a mirror image of
 the disk being backed up onto a separate "clone" disk. It can mount
 encrypted or unencrypted volumes and partitions on the fly as needed.
 """
-__author__  = 'Juerg Beringer'
-__version__ = '$Id: bakman.py 2241 2017-10-18 02:19:20Z jb $'
-__usage__   = """%prog [options] cmd [cmdargs...]
+
+# Python 2/3 compatibility
+from __future__ import print_function
+from future import standard_library
+
+standard_library.install_aliases()
+from builtins import str
+from builtins import range
+
+__author__ = 'Juerg Beringer'
+__version__ = '$Id: bakman.py 2307 2022-10-03 01:11:39Z jb $'
+__usage__ = """%prog [options] cmd [cmdargs...]
 
 Examples:
 
@@ -45,12 +54,8 @@ debug                  enter interactive debug mode
 
 import os
 import sys
-import commands
 import time
-import logging
-import cmdhelper
 from cmdhelper import *
-
 
 #
 # Default configuration and log files
@@ -62,13 +67,13 @@ try:
     LOGFILE = '$UEADM/log/bakman.log'
     CONFIGFILE = '$UEADM/etc/bakman.conf.py'
     DATEFILE = '$UEADM/log/bakman.dates'
-except:
+except Exception:
     # General case: .bakman in user's home dir
-    UEADM = os.path.join(os.path.expanduser('~'),'.bakman')
-    EXCLUDEPATTERN = os.path.join(UEADM,'bakman.exclude')
-    LOGFILE = os.path.join(UEADM,'bakman.log')
-    CONFIGFILE = os.path.join(UEADM,'bakman.conf.py')
-    DATEFILE = os.path.join(UEADM,'bakman.dates')
+    UEADM = os.path.join(os.path.expanduser('~'), '.bakman')
+    EXCLUDEPATTERN = os.path.join(UEADM, 'bakman.exclude')
+    LOGFILE = os.path.join(UEADM, 'bakman.log')
+    CONFIGFILE = os.path.join(UEADM, 'bakman.conf.py')
+    DATEFILE = os.path.join(UEADM, ' bakman.dates')
 
 
 #
@@ -78,14 +83,15 @@ def checkSource(srcPath):
     """Return True if srcPath exists and is not empty."""
     if not os.path.exists(srcPath):
         return False
-    return os.listdir(srcPath)!=[]
+    return os.listdir(srcPath) != []
 
-def checkDest(dstPath,isMountPoint=False):
+
+def checkDest(dstPath, isMountPoint=False):
     """Return True if dstPath exists and, if isMountPoint is True, is a mount point."""
     if not os.path.exists(dstPath):
         return False
     if isMountPoint and not os.path.ismount(dstPath):
-        return False   # Only mount dir exists, but nothing is mounted there
+        return False  # Only mount dir exists, but nothing is mounted there
     return True
 
 
@@ -95,6 +101,7 @@ def checkDest(dstPath,isMountPoint=False):
 class StepException(Exception):
     """Exception class that logs all exceptions occuring in steps."""
 
+
 class Step:
     """Base class for all backup steps."""
 
@@ -103,7 +110,7 @@ class Step:
         self.parentConfig = None
         self.mountPoint = None
 
-    def setParentConfig(self,parentConfig):
+    def setParentConfig(self, parentConfig):
         """Set parent BackupConfiguration instance."""
         self.parentConfig = parentConfig
         if self.mountPoint is None:
@@ -120,7 +127,7 @@ class Step:
     def mountPath(self, relPath=None, path=None):
         """Determine path using parent configuration and given paths.
 
-        If path is set, return path. Otherwise the mount point is
+        If path is set, return path. Otherwise, the mount point is
         determined from options.mountBase or the mountBase set in the
         parent BackupConfiguration, the name of the parent
         configuration, and relPath, if given."""
@@ -131,10 +138,10 @@ class Step:
             mountBase = self.parentConfig.mountBase
         if mountBase is None:
             mountBase = '/media'
-        p = [ mountBase ]
+        p = [mountBase]
         try:
             p.append(self.parentConfig.name)
-        except:
+        except Exception:
             p.append('UNKNOWN')
             warning('mountPath called without parent configuration in step of class %s' % self.__class__.__name__)
         if relPath is not None:
@@ -167,20 +174,20 @@ class Mount(Step):
         If relPath is not empty, it will be appended to the default mount point.
         devinfo is either a device or a partition number for the disk
         defined in the parent configuration."""
-        Step.__init__(self,keepAlive)
+        Step.__init__(self, keepAlive)
         self.relPath = relPath
         self.devinfo = devinfo
         self.mountOpts = '-o %s' % mountOpts if mountOpts else ''
         self.sleepBeforeUnmount = sleepBeforeUnmount
 
-    def setParentConfig(self,parentConfig):
-        Step.setParentConfig(self,parentConfig)
+    def setParentConfig(self, parentConfig):
+        Step.setParentConfig(self, parentConfig)
         if self.relPath:
-            self.mountPoint = os.path.join(self.mountPoint,self.relPath)
+            self.mountPoint = os.path.join(self.mountPoint, self.relPath)
 
     def __str__(self):
         device = self.device(self.devinfo)
-        return 'Mount %s --> %s (options: %s)' % (device,self.mountPoint,self.mountOpts)
+        return 'Mount %s --> %s (options: %s)' % (device, self.mountPoint, self.mountOpts)
 
     def isAvailable(self):
         """Return true if device to be mounted is available.
@@ -196,14 +203,14 @@ class Mount(Step):
 
     def mount(self):
         device = self.device(self.devinfo)
-        #info('Mounting %s at %s' % (device,self.mountPoint))
+        # info('Mounting %s at %s' % (device,self.mountPoint))
         if not os.path.exists(self.mountPoint):
             run('mkdir -p %s' % self.mountPoint)
-        run('mount %s %s %s' % (self.mountOpts,device,self.mountPoint), exceptionOnError=True)
+        run('mount %s %s %s' % (self.mountOpts, device, self.mountPoint), exceptionOnError=True)
 
     def unmount(self):
-        device = self.device(self.devinfo)
-        #info('Unmounting %s from %s' % (device,self.mountPoint))
+        # device = self.device(self.devinfo)
+        # info('Unmounting %s from %s' % (device,self.mountPoint))
         run('sync')
         if self.sleepBeforeUnmount:
             debug('waiting %i second(s) for device to settle' % self.sleepBeforeUnmount)
@@ -218,21 +225,21 @@ class LUKS(Step):
         """The device will be attached at /dev/mapper/bakman-name where name is the
            parameter name. The LUKS password is specified either directly in the configuration
            file as parameter luksKey, or indirectly in a file luksKeyFile."""
-        Step.__init__(self,keepAlive)
+        Step.__init__(self, keepAlive)
         self.name = name
         self.devinfo = devinfo
-        self.luksName = 'bakman-%s' % (name)   # Will be overridden by setParentConfig
+        self.luksName = 'bakman-%s' % name  # Will be overridden by setParentConfig
         self.luksKey = luksKey
         self.luksKeyFile = luksKeyFile
 
     def __str__(self):
         device = self.device(self.devinfo)
-        return 'LUKS volume %s --> %s' % (device,self.luksName)
+        return 'LUKS volume %s --> %s' % (device, self.luksName)
 
-    def setParentConfig(self,parentConfig):
+    def setParentConfig(self, parentConfig):
         """Set parent BackupConfiguration instance."""
-        Step.setParentConfig(self,parentConfig)
-        self.luksName = '%s-%s' % (self.parentConfig.name,self.name)
+        Step.setParentConfig(self, parentConfig)
+        self.luksName = '%s-%s' % (self.parentConfig.name, self.name)
 
     def isAvailable(self):
         device = self.device(self.devinfo)
@@ -240,21 +247,21 @@ class LUKS(Step):
         return hasKey and os.path.exists(device)
 
     def mount(self):
-        #info('Opening LUKS device %s' % (self.luksName))
+        # info('Opening LUKS device %s' % (self.luksName))
         device = self.device(self.devinfo)
         if self.luksKeyFile:
-            key = open(self.luksKeyFile,'r').read().strip()
+            key = open(self.luksKeyFile, 'r').read().strip()
         else:
             key = self.luksKey
-        debug('running cmd: cryptsetup luksOpen %s %s > /dev/null 2>&1' % (device,self.luksName))
-        cryptsetup = os.popen('cryptsetup luksOpen %s %s > /dev/null 2>&1' % (device,self.luksName), 'w')
-        print >>cryptsetup, key
+        debug('running cmd: cryptsetup luksOpen %s %s > /dev/null 2>&1' % (device, self.luksName))
+        cryptsetup = os.popen('cryptsetup luksOpen %s %s > /dev/null 2>&1' % (device, self.luksName), 'w')
+        print(key, file=cryptsetup)
         cryptsetup.close()
-        if not os.path.exists('/dev/mapper/'+self.luksName):
+        if not os.path.exists('/dev/mapper/' + self.luksName):
             raise StepException('Opening LUKS device %s failed' % self.luksName)
 
     def unmount(self):
-        #info('Closing LUKS device %s' % (self.luksName))
+        # info('Closing LUKS device %s' % (self.luksName))
         run('cryptsetup luksClose %s' % self.luksName)
 
 
@@ -263,21 +270,21 @@ class LVM(Step):
 
     def __init__(self, name, keepAlive=False):
         """Attach a logical volume group with the given name."""
-        Step.__init__(self,keepAlive)
+        Step.__init__(self, keepAlive)
         self.name = name
 
     def __str__(self):
         return 'LVM volume %s' % self.name
 
     def mount(self):
-        #info('Attaching logical volumes for group %s' % self.name)
-        run('vgscan --mknodes' )
+        # info('Attaching logical volumes for group %s' % self.name)
+        run('vgscan --mknodes')
         run('vgchange -ay %s' % self.name, exceptionOnError=True)
-        if not os.path.exists('/dev/'+self.name):
+        if not os.path.exists('/dev/' + self.name):
             raise StepException('Attaching logical volumes for group %s failed' % self.name)
 
     def unmount(self):
-        #info('Detaching logical volumes for group %s' % (self.name))
+        # info('Detaching logical volumes for group %s' % (self.name))
         run('vgchange -an %s' % self.name)
 
 
@@ -295,8 +302,8 @@ class Command(Step):
 
     def run(self):
         cmd = self.cmd % self.kwargs
-        #info('    executing %s' % cmd)
-        run(cmd, printOutput=options.verbose,dryrun=options.dryrun)
+        # info('    executing %s' % cmd)
+        run(cmd, printOutput=options.verbose, dryrun=options.dryrun)
 
 
 class SysBackup(Command):
@@ -318,7 +325,7 @@ class CopyFiles(Step):
         self.targetDir = targetDir
 
     def __str__(self):
-        return 'CopyFiles (%s --> %s)' % (self.fileList,self.targetDir)
+        return 'CopyFiles (%s --> %s)' % (self.fileList, self.targetDir)
 
     def isAvailable(self):
         for f in self.fileList:
@@ -328,7 +335,7 @@ class CopyFiles(Step):
 
     def run(self):
         for f in self.fileList:
-            run('/bin/cp -f --preserve=mode,timestamps %s %s' % (f,self.targetDir),
+            run('/bin/cp -f --preserve=mode,timestamps %s %s' % (f, self.targetDir),
                 dryrun=options.dryrun)
         run('/usr/bin/rm -f %s/LASTUPDATED-*.TIMESTAMP' % self.targetDir,
             dryrun=options.dryrun)
@@ -344,33 +351,33 @@ class RotateBackups(Step):
         self.nKeep = int(nKeep)
         self.dstDir = dstDir
         self.mountPoint = mountPoint
-        self.path = None   # will be set by setParentConfig
+        self.path = None  # will be set by setParentConfig
 
-    def setParentConfig(self,parentConfig):
-        Step.setParentConfig(self,parentConfig)
-        self.path = os.path.join(self.mountPoint,self.dstDir)
+    def setParentConfig(self, parentConfig):
+        Step.setParentConfig(self, parentConfig)
+        self.path = os.path.join(self.mountPoint, self.dstDir)
 
     def isAvailable(self):
         return os.path.exists(self.path)
 
     def __str__(self):
-        return 'RotateBackups (keep %i old copies at %s)' % (self.nKeep,self.path)
+        return 'RotateBackups (keep %i old copies at %s)' % (self.nKeep, self.path)
 
     def run(self):
-        if self.nKeep<=0:
+        if self.nKeep <= 0:
             return
-        delPath = os.path.join(self.path,str(self.nKeep))
-        if delPath=='/' or ('*' in delPath) or ('%' in delPath) or ('?' in delPath):
+        delPath = os.path.join(self.path, str(self.nKeep))
+        if delPath == '/' or ('*' in delPath) or ('%' in delPath) or ('?' in delPath):
             error('Found wildcard character in path %s - SKIPPING backup rotation' % delPath)
             return
         if os.path.exists(delPath):
             cmd = 'rm -rf %s' % delPath
             run(cmd, printOutput=True, dryrun=options.dryrun)
-        for i in range(self.nKeep-1,-1,-1):
-            srcPath = os.path.join(self.path,str(i))
-            dstPath = os.path.join(self.path,str(i+1))
+        for i in range(self.nKeep - 1, -1, -1):
+            srcPath = os.path.join(self.path, str(i))
+            dstPath = os.path.join(self.path, str(i + 1))
             if os.path.exists(srcPath):
-                cmd = 'mv -f %s %s' % (srcPath,dstPath)
+                cmd = 'mv -f %s %s' % (srcPath, dstPath)
                 run(cmd, printOutput=True, dryrun=options.dryrun)
 
 
@@ -386,8 +393,8 @@ class Rsync(Step):
            parameter rsyncOpts. The command line options -n and -v
            will add the corresponding rsync options."""
         Step.__init__(self)
-        self.name = name.replace('/','-')
-        self.src = '/%s/' % name if not name=='root' else '/'
+        self.name = name.replace('/', '-')
+        self.src = '/%s/' % name if not name == 'root' else '/'
         self.rsyncOpts = rsyncOpts
         self.rsyncArgs = rsyncArgs
 
@@ -401,11 +408,11 @@ class Rsync(Step):
             if not options.rsyncv:
                 opts += ' -v'
         if self.rsyncOpts:
-            opts += ' '+self.rsyncOpts
-        return 'rsync %s %s %s/%s' % (opts,self.src,self.mountPoint,self.name)
+            opts += ' ' + self.rsyncOpts
+        return 'rsync %s %s %s/%s' % (opts, self.src, self.mountPoint, self.name)
 
     def __str__(self):
-        return 'Rsync: '+self.makeCommand()
+        return 'Rsync: ' + self.makeCommand()
 
     def isAvailable(self):
         return checkSource(self.src)
@@ -413,10 +420,10 @@ class Rsync(Step):
     def run(self):
         if checkSource(self.src):
             cmd = self.makeCommand()
-            #info('    executing %s' % cmd)
+            # info('    executing %s' % cmd)
             run(cmd, printOutput=True, dryrun=options.dryrun)
         else:
-            warning('No files found in %s - skipping rsync' % src)
+            warning('No files found in %s - skipping rsync' % self.src)
 
 
 class RsArchive(Step):
@@ -434,42 +441,41 @@ class RsArchive(Step):
         keepOldVersions is 0 or False."""
         Step.__init__(self)
         self.mountPoint = mountPoint
-        self.path = None # will be set by setParentConfig
+        self.path = None  # will be set by setParentConfig
         self.dstDir = dstDir
-        self.dstPath = None   # will be set by setParentConfig
-        if isinstance(keepOldVersions,bool):
-            # versioned, but rotating done outside of RsArchive
+        self.dstPath = None  # will be set by setParentConfig
+        if isinstance(keepOldVersions, bool):
+            # versioned, but rotating done outside RsArchive
             self.isVersioned = keepOldVersions
             self.nKeep = 0
         else:
-            self.isVersioned = (keepOldVersions>0)
+            self.isVersioned = (keepOldVersions > 0)
             self.nKeep = int(keepOldVersions)
-            if self.nKeep<0:
-                self.nKeep=0
+            if self.nKeep < 0:
+                self.nKeep = 0
         self.srcList = srcList
         self.rsyncArgs = rsyncArgs
         self.rsyncOpts = rsyncOpts
         self.exclPatterns = exclPatterns
         self.exclList = exclList if exclList else []
 
-    def setParentConfig(self,parentConfig):
-        Step.setParentConfig(self,parentConfig)
+    def setParentConfig(self, parentConfig):
+        Step.setParentConfig(self, parentConfig)
         if self.dstDir:
-            self.path = os.path.join(self.mountPoint,self.dstDir)
+            self.path = os.path.join(self.mountPoint, self.dstDir)
         else:
             self.path = self.mountPoint
         if self.isVersioned:
-            self.linkPath = os.path.join(self.path,'1')
-            self.dstPath = os.path.join(self.path,'0')
+            self.linkPath = os.path.join(self.path, '1')
+            self.dstPath = os.path.join(self.path, '0')
         else:
             self.dstPath = self.path
 
     def makeCommand(self, src):
         """Return string with full command line for rsync command."""
-        cmd = ['rsync']
-        cmd.append(self.rsyncArgs)
+        cmd = ['rsync', self.rsyncArgs]
         if self.isVersioned:
-            if src=='/':
+            if src == '/':
                 cmd.append(' --link-dest %s/root' % self.linkPath)
             else:
                 cmd.append(' --link-dest %s' % self.linkPath)
@@ -485,24 +491,24 @@ class RsArchive(Step):
             cmd.append('--exclude=%s' % e)
         if self.exclPatterns:
             cmd.append('--exclude-from=%s' % self.exclPatterns)
-        if src=='/':
+        if src == '/':
             cmd.append('/  %s/root' % self.dstPath)
         else:
-            cmd.append('%s  %s' % (src,self.dstPath))
+            cmd.append('%s  %s' % (src, self.dstPath))
         return ' '.join(cmd)
 
     def __str__(self):
-        if self.nKeep>0:
-            cmds = ['RsArchive (%s) - rotate to keep %i old copies' % (self.srcList,self.nKeep)]
+        if self.nKeep > 0:
+            cmds = ['RsArchive (%s) - rotate to keep %i old copies' % (self.srcList, self.nKeep)]
         else:
             cmds = ['RsArchive (%s)' % self.srcList]
         for src in self.srcList:
             cmds.append('%1s %s' % ('*' if checkSource(src) else '',
-                                   self.makeCommand(src)))
+                                    self.makeCommand(src)))
         return '\n'.join(cmds)
 
     def isAvailable(self):
-        if not checkDest(self.mountPoint,True):
+        if not checkDest(self.mountPoint, True):
             return False
         for d in self.srcList:
             if not checkSource(d):
@@ -510,37 +516,37 @@ class RsArchive(Step):
         return True
 
     def run(self):
-        if not checkDest(self.mountPoint,True):
+        if not checkDest(self.mountPoint, True):
             error('Destination %s is not mounted' % self.mountPoint)
         else:
             if not os.path.exists(self.dstPath):
                 run('mkdir -p %s' % self.dstPath, dryrun=options.dryrun)
-            if self.nKeep>0:
+            if self.nKeep > 0:
                 # rotate old versions
-                info('%s starting rotate, keeping %s old versions ...' % (time.asctime(),self.nKeep))
-                delPath = os.path.join(self.path,str(self.nKeep))
-                if delPath=='/' or ('*' in delPath) or ('%' in delPath) or ('?' in delPath):
+                info('%s starting rotate, keeping %s old versions ...' % (time.asctime(), self.nKeep))
+                delPath = os.path.join(self.path, str(self.nKeep))
+                if delPath == '/' or ('*' in delPath) or ('%' in delPath) or ('?' in delPath):
                     error('Found wildcard character in rotation path %s - skipping backup' % delPath)
                     return
                 if os.path.exists(delPath):
                     cmd = 'rm -rf %s' % delPath
                     run(cmd, printOutput=True, dryrun=options.dryrun)
-                for i in range(self.nKeep-1,-1,-1):
-                    srcPath = os.path.join(self.path,str(i))
-                    dstPath = os.path.join(self.path,str(i+1))
+                for i in range(self.nKeep - 1, -1, -1):
+                    srcPath = os.path.join(self.path, str(i))
+                    dstPath = os.path.join(self.path, str(i + 1))
                     if os.path.exists(srcPath):
-                        cmd = 'mv -f %s %s' % (srcPath,dstPath)
+                        cmd = 'mv -f %s %s' % (srcPath, dstPath)
                         run(cmd, printOutput=True, dryrun=options.dryrun)
             for src in self.srcList:
                 if checkSource(src):
-                    info('%s starting rsync of %s ...' % (time.asctime(),src))
+                    info('%s starting rsync of %s ...' % (time.asctime(), src))
                     cmd = self.makeCommand(src)
                     run(cmd, printOutput=True, dryrun=options.dryrun)
                 else:
                     warning('No files found in %s - skipping rsync' % src)
             stampPath = self.dstPath
-            if (not self.dstDir) and len(self.srcList)==1 and self.srcList[0][-1]!='/':
-                stampPath = os.path.join(stampPath,os.path.basename(self.srcList[0]))
+            if (not self.dstDir) and len(self.srcList) == 1 and self.srcList[0][-1] != '/':
+                stampPath = os.path.join(stampPath, os.path.basename(self.srcList[0]))
             run('touch %s/RSARCHIVE.TIMESTAMP' % stampPath, dryrun=options.dryrun)
 
 
@@ -555,14 +561,14 @@ class BackupConfiguration:
         self.commonSteps = commonSteps
         for s in commonSteps:
             s.setParentConfig(self)
-        self.parts = []       # list of tuples (name,stepList)
-        self.locked = False   # flag to prevent erroneous changes to configuration
+        self.parts = []  # list of tuples (name,stepList)
+        self.locked = False  # flag to prevent erroneous changes to configuration
 
     def lock(self):
         """Lock configuration."""
         self.locked = True
 
-    def device(self,devinfo=None):
+    def device(self, devinfo=None):
         """Return absolute device path to disk or partition.
 
         devinfo is either a device (/dev/...) or a partition number.
@@ -574,12 +580,12 @@ class BackupConfiguration:
         if devinfo is None:
             return '/dev/disk/by-id/%s' % (self.diskId)
         try:
-            if devinfo[0:5]=='/dev/':
+            if devinfo[0:5] == '/dev/':
                 return devinfo
-        except:
+        except Exception:
             pass
-        return '/dev/disk/by-id/%s-part%i' % (self.diskId,devinfo)
-        
+        return '/dev/disk/by-id/%s-part%i' % (self.diskId, devinfo)
+
     # FIXME: optional part argument to check if part is avaiable
     def isAvailable(self):
         """Return True if configuration is available."""
@@ -597,16 +603,16 @@ class BackupConfiguration:
 
     def definedParts(self):
         """Return list of all defined parts."""
-        return [name for (name,steps) in self.parts]
+        return [name for (name, steps) in self.parts]
 
     def availableParts(self):
         """Return list with names of available parts."""
         if not self.isAvailable():
             return []
         if not self.isAvailableCommonSteps():
-            return []   # No parts available if common steps not available
+            return []  # No parts available if common steps not available
         available = []
-        for (name,steps) in self.parts:
+        for (name, steps) in self.parts:
             isAvailable = True
             for s in steps:
                 isAvailable = isAvailable and s.isAvailable()
@@ -617,16 +623,16 @@ class BackupConfiguration:
     def add(self, name, *steps):
         """Add a new part with given steps."""
         if self.locked:
-            raise RuntimeError('config file error: cannot add part %s to locked configuration %s' % (name,self.name))
+            raise RuntimeError('config file error: cannot add part %s to locked configuration %s' % (name, self.name))
         else:
-            self.parts.append( (name,list(steps)) )
+            self.parts.append((name, list(steps)))
             for s in steps:
                 s.setParentConfig(self)
 
     def steps(self, partName):
         """Return list of steps for part with name partName."""
-        for (name,steps) in self.parts:
-            if name==partName:
+        for (name, steps) in self.parts:
+            if name == partName:
                 return steps
         raise LookupError('Part %s not found' % partName)
 
@@ -636,37 +642,39 @@ class BackupConfiguration:
         steps = set()
         for s in self.commonSteps:
             steps.add(s)
-        c = BackupConfiguration(self.name,description,self.diskId,self.mountBase,*self.commonSteps)
+        c = BackupConfiguration(self.name, description, self.diskId, self.mountBase, *self.commonSteps)
         for name in partNames:
             uniqueSteps = []
-            c.parts.append( (name,uniqueSteps) )
+            c.parts.append((name, uniqueSteps))
             for s in self.steps(name):
-                if not s in steps:
+                if s not in steps:
                     uniqueSteps.append(s)
                     steps.add(s)
         return c
 
     def dump(self):
-        print 'Configuration %s (%s):' % (self.name,self.description)
-        print '  --- steps marked as KEEP will be unmounted in reverse order at the end'
-        print "  --- '*' denotes parts or actions that are available"
-        print
+        print('Configuration %s (%s):' % (self.name, self.description))
+        print('  --- steps marked as KEEP will be unmounted in reverse order at the end')
+        print("  --- '*' denotes parts or actions that are available")
+        print()
         available = self.availableParts() if self.isAvailable() else []
-        if len(self.parts)+len(self.commonSteps)>0:
-            print '  %1s Common steps:' % ('*' if self.isAvailableCommonSteps() else '')
-            def printStep(keepAlive,step):
-                sep = '      KEEP  ' if keepAlive else  10*' '
+        if len(self.parts) + len(self.commonSteps) > 0:
+            print('  %1s Common steps:' % ('*' if self.isAvailableCommonSteps() else ''))
+
+            def printStep(keepAlive, step):
+                sep = '      KEEP  ' if keepAlive else 10 * ' '
                 for l in str(step).split('\n'):
-                    print sep,l
+                    print(sep, l)
+
             for s in self.commonSteps:
-                printStep(s.keepAlive,s)
-            for (name,steps) in self.parts:
-                print
-                print '  %1s %s:' % ('*' if name in available else '',name)
+                printStep(s.keepAlive, s)
+            for (name, steps) in self.parts:
+                print()
+                print('  %1s %s:' % ('*' if name in available else '', name))
                 for s in steps:
-                    printStep(s.keepAlive,s)
+                    printStep(s.keepAlive, s)
         else:
-            print '\n%s has no parts' % self.name
+            print('\n%s has no parts' % self.name)
 
 
 #
@@ -681,20 +689,20 @@ def prepareConfig(cmdargs):
     configName = cmdargs[0]
     try:
         config = configDict[configName]
-    except:
+    except Exception:
         raise LookupError('Configuration %s not found' % configName)
     availableParts = config.availableParts()
     definedParts = config.definedParts()
     excludeParts = options.excludeParts.split(',')
     parts = []
-    tryParts = cmdargs[1:] if len(cmdargs)>1 else config.definedParts()
+    tryParts = cmdargs[1:] if len(cmdargs) > 1 else config.definedParts()
     for p in tryParts:
         if p in availableParts:
-            if not p in excludeParts:
+            if p not in excludeParts:
                 parts.append(p)
         else:
-            if len(cmdargs)>1:
-                error('Part %s of configuration %s is not available or not defined.' % (p,configName))
+            if len(cmdargs) > 1:
+                error('Part %s of configuration %s is not available or not defined.' % (p, configName))
             else:
                 warning('Part %s not available - skipping' % p)
     info('')
@@ -703,10 +711,11 @@ def prepareConfig(cmdargs):
     info('Available parts:  %s' % availableParts)
     info('Excluded parts:   %s' % excludeParts)
     info('Using parts:      %s' % parts)
-    return (configName,config.uniqueStepConfiguration(parts),parts)
+    return configName, config.uniqueStepConfiguration(parts), parts
+
 
 def execute(partList, config, doMount=False, doRun=False, doUnmount=False):
-    """Execute a actions on steps in selected parts."""
+    """Execute actions on steps in selected parts."""
     fmt = 'starting  %-8s  for step  %-16s    (%s)'
 
     # Check that bakman is not running already
@@ -715,11 +724,11 @@ def execute(partList, config, doMount=False, doRun=False, doUnmount=False):
     # Check if there are any steps. This takes also care of preventing execution
     # of unavailable common steps (if common steps are not available, no parts are
     # available.
-    if len(partList)==0:
+    if len(partList) == 0:
         return
 
     # Check that we are root
-    if os.geteuid()!=0:
+    if os.geteuid() != 0:
         error('Must run as root')
         sys.exit(1)
 
@@ -728,35 +737,35 @@ def execute(partList, config, doMount=False, doRun=False, doUnmount=False):
     info('%s Processing common steps ...' % (time.asctime()))
     if doMount:
         for s in config.commonSteps:
-            debug(fmt % ('mount',s.__class__.__name__,'common steps'))
+            debug(fmt % ('mount', s.__class__.__name__, 'common steps'))
             s.mount()
     if doRun:
         for s in config.commonSteps:
-            debug(fmt % ('run',s.__class__.__name__,'common steps'))
+            debug(fmt % ('run', s.__class__.__name__, 'common steps'))
             s.run()
     if doUnmount:
         for s in reversed(config.commonSteps):
             if not s.keepAlive:
-                debug(fmt % ('unmount',s.__class__.__name__,'common steps'))
+                debug(fmt % ('unmount', s.__class__.__name__, 'common steps'))
                 s.unmount()
 
     # Process parts
     for p in partList:
         info('')
-        info('%s Processing part %s ...' % (time.asctime(),p))
+        info('%s Processing part %s ...' % (time.asctime(), p))
         steps = config.steps(p)
         if doMount:
             for s in steps:
-                debug(fmt % ('mount',s.__class__.__name__,p))
+                debug(fmt % ('mount', s.__class__.__name__, p))
                 s.mount()
         if doRun:
             for s in steps:
-                debug(fmt % ('run',s.__class__.__name__,p))
+                debug(fmt % ('run', s.__class__.__name__, p))
                 s.run()
         if doUnmount:
             for s in reversed(steps):
                 if not s.keepAlive:
-                    debug(fmt % ('unmount',s.__class__.__name__,p))
+                    debug(fmt % ('unmount', s.__class__.__name__, p))
                     s.unmount()
 
     # Finalize parts kept alive and common steps
@@ -764,11 +773,11 @@ def execute(partList, config, doMount=False, doRun=False, doUnmount=False):
         for p in reversed(partList):
             for s in reversed(config.steps(p)):
                 if s.keepAlive:
-                    debug(fmt % ('finalize',s.__class__.__name__,p))
+                    debug(fmt % ('finalize', s.__class__.__name__, p))
                     s.unmount()
         for s in reversed(config.commonSteps):
             if s.keepAlive:
-                debug(fmt % ('finalize',s.__class__.__name__,'common steps'))
+                debug(fmt % ('finalize', s.__class__.__name__, 'common steps'))
                 s.unmount()
 
     # Done
@@ -781,11 +790,11 @@ def execute(partList, config, doMount=False, doRun=False, doUnmount=False):
 #
 if __name__ == '__main__':
     cmdHelper = CmdHelper('optparse', __version__, __usage__,
-                   hasInteractive=True,
-                   hasBatch=True,
-                   logFile=LOGFILE,
-                   logSeparator=70*'-',
-                   logTimestampFmt='%(asctime)s %(levelname)-8s ')
+                          hasInteractive=True,
+                          hasBatch=True,
+                          logFile=LOGFILE,
+                          logSeparator=70 * '-',
+                          logTimestampFmt='%(asctime)s %(levelname)-8s ')
     defaultConfigFile = CONFIGFILE
     defaultRunLogFile = DATEFILE
     cmdHelper.add_option('', '--runlog', dest='runlog', default=os.path.expandvars(defaultRunLogFile),
@@ -797,16 +806,16 @@ if __name__ == '__main__':
     cmdHelper.add_option('-x', '--exclude', dest='excludeParts', default='',
                          help='comma-separated string of parts to exclude')
     cmdHelper.add_option('', '--modify-window', dest='modifywindow', type=int, default='3601',
-                         help='rsync: set maximum time differencee to ignore (used only for FAT '
-                         'filesystems, default: 3601)')
+                         help='rsync: set maximum time difference to ignore (used only for FAT '
+                              'filesystems, default: 3601)')
     cmdHelper.add_option('-V', '--rsyncv', dest='rsyncv', action='store_true', default=False,
                          help='rsync: show files being transferred')
     cmdHelper.add_option('-n', '--rsyncn', dest='rsyncn', action='store_true', default=False,
                          help='rsync: only show what would be done but do not copy anything')
     cmdHelper.add_option('', '--dryrun', dest='dryrun', action='store_true', default=False,
                          help='only log commands (use --debug), but do not execute anything in run step '
-                         '(mount/unmount are still executed)')
-    (options,args) = cmdHelper.parse()
+                              '(mount/unmount are still executed)')
+    (options, args) = cmdHelper.parse()
     if len(args) < 1:
         error('wrong number of command line arguments')
         sys.exit(1)
@@ -819,91 +828,91 @@ if __name__ == '__main__':
 
         # Read config file
         configDict = {}
-        execfile(options.config,globals(),configDict)
+        exec (open(options.config).read(), globals(), configDict)
 
         # List defined configuration
-        if cmd=='list' and len(cmdargs)==0:
-            print 'Configuration:   %s' % options.config
-            print 'Log file:        %s' % options.logfile
-            print
-            print 'List of backup configurations (* means configration is available):'
+        if cmd == 'list' and len(cmdargs) == 0:
+            print('Configuration:   %s' % options.config)
+            print('Log file:        %s' % options.logfile)
+            print()
+            print('List of backup configurations (* means configuration is available):')
             for configName in sorted(configDict.keys()):
-                if not isinstance(configDict[configName],BackupConfiguration):
+                if not isinstance(configDict[configName], BackupConfiguration):
                     continue
                 config = configDict[configName]
-                print '  %1s  %-15s   %s' % ('*' if config.isAvailable() else '',
+                print('  %1s  %-15s   %s' % ('*' if config.isAvailable() else '',
                                              config.name,
-                                             config.description)
+                                             config.description))
             cmdOk = True
 
         # List parts in configuration
-        if cmd=='list' and len(cmdargs)==1:
+        if cmd == 'list' and len(cmdargs) == 1:
             configName = cmdargs[0]
             try:
                 config = configDict[configName]
-            except:
+            except Exception:
                 raise LookupError('Configuration %s not found' % configName)
             available = config.availableParts() if config.isAvailable() else []
-            print 'Parts in configuration %s (* means part is available):' % configName
-            for (name,steps) in config.parts:
-                print '  %1s  %-15s' % ('*' if name in available else ' ',name)
+            print('Parts in configuration %s (* means part is available):' % configName)
+            for (name, steps) in config.parts:
+                print('  %1s  %-15s' % ('*' if name in available else ' ', name))
             cmdOk = True
 
         # Dump configuration
-        if cmd=='dump' and len(cmdargs)==1:
+        if cmd == 'dump' and len(cmdargs) == 1:
             configName = cmdargs[0]
             try:
                 config = configDict[configName]
-            except:
+            except Exception:
                 raise LookupError('Configuration %s not found' % configName)
             config.dump()
             cmdOk = True
 
         # Mount all or selected parts in specific configuration
-        if cmd=='mount' and (len(cmdargs)==1 or len(cmdargs)==2):
-            (configName,stepConfig,parts) = prepareConfig(cmdargs)
-            execute(parts,stepConfig,doMount=True)
+        if cmd == 'mount' and (len(cmdargs) == 1 or len(cmdargs) == 2):
+            (configName, stepConfig, parts) = prepareConfig(cmdargs)
+            execute(parts, stepConfig, doMount=True)
             cmdOk = True
 
         # Unmount all or selected parts in specific configuration
-        if cmd=='unmount' and (len(cmdargs)==1 or len(cmdargs)==2):
-            (configName,stepConfig,parts) = prepareConfig(cmdargs)
-            execute(parts,stepConfig,doUnmount=True)
+        if cmd == 'unmount' and (len(cmdargs) == 1 or len(cmdargs) == 2):
+            (configName, stepConfig, parts) = prepareConfig(cmdargs)
+            execute(parts, stepConfig, doUnmount=True)
             cmdOk = True
 
         # Run all or selected parts in specific configuration
-        if cmd=='run' and len(cmdargs)>=1:
-            (configName,stepConfig,parts) = prepareConfig(cmdargs)
+        if cmd == 'run' and len(cmdargs) >= 1:
+            (configName, stepConfig, parts) = prepareConfig(cmdargs)
             if not options.batch:
                 if not parts:
                     error('Nothing to run - backup aborted.')
                     sys.exit(1)
                 try:
                     config = configDict[configName]
-                except:
+                except Exception:
                     raise LookupError('Configuration %s not found' % configName)
-                print
+                print()
                 config.dump()
-                print
+                print()
                 confirm('Execute backup with parts %s' % parts)
-            execute(parts,stepConfig,doMount=True,doRun=True,doUnmount=True)
+            execute(parts, stepConfig, doMount=True, doRun=True, doUnmount=True)
             if not options.dryrun:
-                with open(options.runlog,'a') as f:
-                    line = time.strftime('%a %b %d %X %Z %Y '+cmdLine(True)+'\n')
+                with open(options.runlog, 'a') as f:
+                    line = time.strftime('%a %b %d %X %Z %Y ' + cmdLine(True) + '\n')
                     f.write(line)
             cmdOk = True
 
         # Enter interactive debug mode
-        if cmd=='debug':
+        if cmd == 'debug':
             os.environ['PYTHONINSPECT'] = '1'
-            print 'Entering interactive mode (configDict contains configuration info) ...'
+            print('Entering interactive mode (configDict contains configuration info) ...')
             cmdOk = True
 
         if not cmdOk:
             raise CmdError('illegal command or number of arguments')
 
-    except Exception, e:
-        handleError(e,options.debug)
+    except Exception as e:
+        handleError(e, options.debug)
     except KeyboardInterrupt:
         error('Backup aborted by user (CTRL-C)')
         sys.exit(1)
